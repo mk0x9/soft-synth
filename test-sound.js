@@ -1,10 +1,10 @@
 var bits = 16,
   sample_rate = 44100,
-  pitch_duration = 15,
+  sound_duration = 30,
   total_header = 44,
-  freq = 410;
+  freq = 210;
 
-var wave_data_size = sample_rate * (bits / 8) * pitch_duration,
+var wave_data_size = sample_rate * (bits / 8) * sound_duration,
   wave_header = 36;
 
 function c (f) {
@@ -79,10 +79,18 @@ view[43] = (wave_data_size >> 24) & 0xff;
 
 var header = String.fromCharCode.apply(0, view);
 
-var amplitude = Math.floor((1 << bits) / 2 - 1);
+function generate_freq(i) {
+  return freq + 100 * Math.sin(i * 2 * Math.PI / sample_rate / 2);
+}
+
+var amplitude = Math.floor((1 << (bits /* lower volume by 50% */)) / 2 - 1);
+
+var current_offset, prev_offset;
+current_offset = prev_offset = 0;
 
 function generate_sample(i) {
-  return(Math.sin(i * 2 * Math.PI * freq / sample_rate) * amplitude);
+  prev_offset = current_offset = (prev_offset + generate_freq(i) * 2 * Math.PI / sample_rate) % (2 * Math.PI);
+  return Math.sin(current_offset) * amplitude;
 }
 
 data = '';
@@ -92,4 +100,14 @@ for (var i = 0; i < wave_data_size; i++) {
  data += String.fromCharCode(sample & 0xff) + String.fromCharCode((sample >> 8) & 0xff);
 }
 
-play(header + data);
+if (typeof document !== 'undefined') {
+  play(header + data);
+} else {
+  /* node.js, save file */
+  var out, fd, fs = require('fs');
+  out = header + data;
+  fd = fs.openSync('./out.wav', 'w');
+  fs.writeSync(fd, out, 0, 'binary', 0);
+  fs.closeSync(fd);
+  console.log('done!');
+}
